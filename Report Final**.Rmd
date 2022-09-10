@@ -1,0 +1,97 @@
+---
+title: "Untitled"
+author: "Kaiyan Jiang 1003848189"
+date: "3/30/2021"
+output: pdf_document
+---
+
+```{r}
+cov <- turtles %>%
+  select(notch,Year,sex,site)
+cov <- cov %>%
+  group_by(notch)%>%
+  filter(Year==max(Year))
+cov <- cov %>%
+  select(notch,sex,site)
+cov <- left_join(turtles1,cov)
+midpl <- turtles %>%
+  select(notch,Year,midpl)
+midpl <- midpl %>%
+  pivot_wider(values_from = midpl,names_from=Year,
+              names_sort = TRUE)
+```
+```{r}
+names(midpl)[2:29]<-paste("midpl", c(1:28),sep = "")
+covariates <- left_join(cov,midpl)
+covariates <- covariates %>%
+  mutate(site=factor(site))
+covariates <- na.locf(covariates)
+```
+```{r}
+cov.proc=process.data(covariates)
+cov.ddl = make.design.data(cov.proc)
+design.Phi=list(static=c("site"),time.varying=c("midpl"))
+design.p=list(static=c("sex"))
+design.parameters=list(Phi=design.Phi,p=design.p)
+ddl=make.design.data(cov.proc,parameters=design.parameters)
+
+Phi.turtles=list(formula=~site+midpl)
+p.turtles=list(formula=~sex)
+model_c=crm(cov.proc,ddl,hessian=TRUE,model.parameters=list(Phi=Phi.turtles,p=p.turtles))
+model_c
+```
+```{r}
+predict_c <- predict(model_c,se=TRUE,interval="confidence")
+predict_c1 <- predict_c$Phi %>%
+  filter(midpl==14.19)
+predict_c1
+predict_c1_1 <- predict_c$Phi %>%
+  filter(midpl==14.16)
+predict_c1_1[5,]
+predict_c1_2 <- predict_c$Phi %>%
+  filter(midpl==14.17)
+predict_c1_2[3,]
+predict_c1_2[5,]
+predict_c1_3 <- predict_c$Phi %>%
+  filter(midpl==14.26)
+predict_c1_3[4,]
+predict_s <- rbind(predict_c1,predict_c1_1[5,],predict_c1_2[3,],predict_c1_2[5,],predict_c1_3[4,])
+```
+```{r}
+predict_s <- predict_s[,-3]
+predict_s <- predict_s[-2]
+labels_c <- paste(predict_s$site,round(predict_s$estimate,4),sep=" ")
+ggplot(predict_s) +
+  geom_bar( aes(x=site, y=estimate,fill=site), stat="identity", alpha=0.7) +
+  ylab("Survival Probability")+
+  geom_errorbar( aes(x=site, ymin=lcl, ymax=ucl), width=0.4, colour="black", alpha=0.9, size=1.3)+
+  scale_fill_discrete(name="Site",label=labels_c)+
+  theme_bw() +
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
+```
+```{r}
+predict_c <- predict(model_c,se=TRUE,interval="confidence")
+predict_c2 <- predict_c$Phi %>%
+  filter(site == "Wolf Howl Pond")
+predict_c2 <- predict_c2[,-3]
+predict_c2 <- sample_n(predict_c2,10)
+predict_c2 <- predict_c2[order(predict_c2$midpl),]
+rownames(predict_c2) <- NULL
+ggplot(predict_c2,aes(x=midpl, y=estimate)) +
+  geom_line( color="grey") +
+  geom_errorbar( aes(x=midpl, ymin=lcl, ymax=ucl), width=0.4, colour="orange", alpha=0.9, size=1)+
+  geom_point(shape=4, color="black", size=3)+
+  ylab("Survival Probability")+
+  xlab("Maximum Plastron Length")+
+  theme_bw() +
+  theme(axis.line = element_line(colour = "black"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
+```
+
